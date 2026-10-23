@@ -1,0 +1,44 @@
+[project]
+name = "pcb-defect-platform"
+version = "0.1.0"
+description = "PCB 缺陷检测 Web 平台:双方案对比的可视化应用(灵境竞赛组 · 后端 AI 方向 第三阶段)"
+readme = "README.md"
+authors = [
+    { name = "yangqichao", email = "yangqichao66@163.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.0",
+    "gradio>=5.0.0",
+    "redis>=5.0.0",
+    "rq>=2.0.0",
+    "python-multipart>=0.0.12",
+    "requests>=2.32.0",
+    "pillow>=12.3.0",
+    "numpy>=2.5.4",
+    "torch>=2.9.0",
+    "torchvision>=0.24.0",
+    "ultralytics>=8.4.0",
+    "pyjwt>=2.15.1",
+]
+
+[project.scripts]
+pcb-defect-platform = "pcb_defect_platform.main:main"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[tool.uv]
+link-mode = "copy"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
