@@ -42,3 +42,4 @@ CLASS_NAMES_ZH = {
 CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
 IMGSZ = int(os.environ.get("IMGSZ", "1024"))
 SAM_IMGSZ = int(os.environ.get("SAM_IMGSZ", "512"))
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "20"))
