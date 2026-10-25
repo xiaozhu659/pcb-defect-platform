@@ -1,0 +1,59 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app/src
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    volumes:
+      # 模型权重大且不常变,用只读挂载,不打进镜像
+      - ../src:/app/src:ro
+      - ../models:/app/models:ro
+      - ../data:/app/data
+      - ../uploads:/app/uploads
+      - ../outputs:/app/outputs
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app/src
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    mem_limit: 1150m
+    volumes:
+      - ../src:/app/src:ro
+      - ../models:/app/models:ro
+      - ../data:/app/data
+      - ../uploads:/app/uploads
+      - ../outputs:/app/outputs
+    command: ["rq", "worker", "pcb_jobs", "--url", "redis://redis:6379/0"]
+    depends_on:
+      - redis
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
