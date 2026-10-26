@@ -42,7 +42,7 @@ def analyze(image_path: str | None, token: str):
         return None, None, f"提交失败:{response.status_code} {response.text[:200]}"
 
     job_id = response.json()["id"]
-    deadline = time.time() + 300
+    deadline = time.time() + 420
     job = {}
     while time.time() < deadline:
         job = requests.get(f"{API_BASE}/api/jobs/{job_id}",
@@ -54,7 +54,7 @@ def analyze(image_path: str | None, token: str):
     if job.get("status") == "failed":
         return None, None, f"任务失败:{job.get('error')}"
     if job.get("status") != "done":
-        return None, None, "任务超时(超过 5 分钟)"
+        return None, None, "任务超时(超过 7 分钟)"
 
     yolo = job.get("yolo") or {}
     llm = job.get("llm") or {}
