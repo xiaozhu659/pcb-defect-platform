@@ -130,6 +130,13 @@ docker compose -f deploy/docker-compose.yml up -d --build
 其中 YOLO 在验证集上 mAP50 为 0.956,SAM 用于把检测框细化成可量面积的掩膜。
 本阶段新增的是 Web 接口、异步队列、数据库记录与容器化部署。
 
+## 交付文档
+
+- [项目说明](docs/项目说明.md) / [PDF](docs/pdf/PCB缺陷检测平台-项目说明.pdf)
+- [部署与验收](docs/部署与验收.md) / [PDF](docs/pdf/PCB缺陷检测平台-部署与验收.pdf)
+- [验收记录](docs/验收记录.md)
+- [参考与 AI 辅助说明](docs/参考与AI辅助说明.md)
+
 ## 当前进度
 
 - [x] FastAPI 后端与任务接口
@@ -141,4 +148,8 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - [x] Docker 本机实测(web + worker + redis + nginx 四容器,队列走 Redis)
 - [x] JWT 登录与接口鉴权
 - [x] Linux 云服务器部署与端到端实测
-- [ ] 演示视频与最终交付压缩包
+- [x] 上传安全校验、单元测试与端到端自动验收
+- [x] 演示视频录制清单、逐段旁白稿与个人总结
+- [x] 源码、模型权重、说明文档与交付说明整理完成
+
+视频文件由本人按照旁白稿录制后放入交付目录;技术开发、部署、测试和交付材料均已准备完成。
