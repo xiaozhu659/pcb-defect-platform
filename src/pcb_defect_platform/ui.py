@@ -1,12 +1,19 @@
 """Gradio 页面:上传一张 PCB 图片,并排展示两种方案的检测结果。"""
 
-import io
 import time
+from pathlib import Path
 
 import gradio as gr
 import requests
+from PIL import Image
 
 API_BASE = "http://127.0.0.1:8000"
+IMAGE_EXTENSIONS = {
+    "JPEG": (".jpg", "image/jpeg"),
+    "PNG": (".png", "image/png"),
+    "BMP": (".bmp", "image/bmp"),
+    "WEBP": (".webp", "image/webp"),
+}
 
 
 def login(username: str, password: str):
@@ -29,13 +36,24 @@ def analyze(image_path: str | None, token: str):
         return None, None, "请先在上方登录。"
     headers = {"Authorization": f"Bearer {token}"}
 
-    with open(image_path, "rb") as fh:
-        response = requests.post(
-            f"{API_BASE}/api/jobs",
-            files={"file": ("upload.png", fh, "image/png")},
-            headers=headers,
-            timeout=60,
+    try:
+        with Image.open(image_path) as uploaded:
+            image_format = (uploaded.format or "").upper()
+        suffix, content_type = IMAGE_EXTENSIONS.get(
+            image_format,
+            (Path(image_path).suffix or ".jpg", "application/octet-stream"),
         )
+        with open(image_path, "rb") as fh:
+            response = requests.post(
+                f"{API_BASE}/api/jobs",
+                files={"file": (f"upload{suffix}", fh, content_type)},
+                headers=headers,
+                timeout=60,
+            )
+    except (OSError, Image.UnidentifiedImageError) as exc:
+        return None, None, f"无法读取上传图片:{exc}"
+    except requests.RequestException as exc:
+        return None, None, f"提交任务时网络错误:{exc}"
     if response.status_code == 401:
         return None, None, "登录已过期,请重新登录。"
     if response.status_code != 200:
@@ -44,9 +62,30 @@ def analyze(image_path: str | None, token: str):
     job_id = response.json()["id"]
     deadline = time.time() + 420
     job = {}
+    last_poll_error = ""
     while time.time() < deadline:
-        job = requests.get(f"{API_BASE}/api/jobs/{job_id}",
-                           headers=headers, timeout=15).json()
+        try:
+            poll_response = requests.get(
+                f"{API_BASE}/api/jobs/{job_id}",
+                headers=headers,
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            last_poll_error = str(exc)
+            time.sleep(2)
+            continue
+        if poll_response.status_code == 401:
+            return None, None, "登录已过期,请重新登录。"
+        if poll_response.status_code != 200:
+            last_poll_error = f"HTTP {poll_response.status_code}"
+            time.sleep(2)
+            continue
+        try:
+            job = poll_response.json()
+        except ValueError:
+            last_poll_error = "任务状态响应不是有效 JSON"
+            time.sleep(2)
+            continue
         if job["status"] in {"done", "failed"}:
             break
         time.sleep(2)
@@ -54,14 +93,13 @@ def analyze(image_path: str | None, token: str):
     if job.get("status") == "failed":
         return None, None, f"任务失败:{job.get('error')}"
     if job.get("status") != "done":
-        return None, None, "任务超时(超过 7 分钟)"
+        suffix = f",最后错误:{last_poll_error}" if last_poll_error else ""
+        return None, None, f"任务超时(超过 7 分钟){suffix}"
 
     yolo = job.get("yolo") or {}
     llm = job.get("llm") or {}
-    yolo_image = requests.get(f"{API_BASE}/api/files/{job_id}/yolo",
-                              headers=headers, timeout=15).content
-    llm_image = requests.get(f"{API_BASE}/api/files/{job_id}/llm",
-                             headers=headers, timeout=15).content
+    yolo_image = _download_image(job_id, "yolo", headers)
+    llm_image = _download_image(job_id, "llm", headers)
 
     yolo_types = "、".join(sorted({d.get("name_zh", d.get("type", "?")) for d in yolo.get("defects", [])})) or "无"
     llm_types = "、".join(sorted({d.get("name_zh", d.get("type", "?")) for d in llm.get("defects", [])})) or "无"
@@ -78,6 +116,20 @@ def analyze(image_path: str | None, token: str):
         summary += f"\n大模型错误:{llm['error']}"
 
     return yolo_image, llm_image, summary
+
+
+def _download_image(job_id: int, kind: str, headers: dict[str, str]):
+    try:
+        response = requests.get(
+            f"{API_BASE}/api/files/{job_id}/{kind}",
+            headers=headers,
+            timeout=30,
+        )
+    except requests.RequestException:
+        return None
+    if response.status_code != 200 or not response.content:
+        return None
+    return response.content
 
 
 def build_ui() -> gr.Blocks:

@@ -29,11 +29,17 @@ def process_job(job_id: int) -> None:
             image_paths[kind] = target.name
 
         result["images"] = image_paths
-        job.yolo_result = json.dumps(result.get("yolo"), ensure_ascii=False)
-        job.llm_result = json.dumps(result.get("llm"), ensure_ascii=False)
-        job.yolo_ms = int((result.get("yolo") or {}).get("elapsed_ms") or 0)
-        job.llm_ms = int((result.get("llm") or {}).get("elapsed_ms") or 0)
-        job.status = "done"
+        yolo_result = result.get("yolo") or {}
+        llm_result = result.get("llm") or {}
+        job.yolo_result = json.dumps(yolo_result, ensure_ascii=False)
+        job.llm_result = json.dumps(llm_result, ensure_ascii=False)
+        job.yolo_ms = int(yolo_result.get("elapsed_ms") or 0)
+        job.llm_ms = int(llm_result.get("elapsed_ms") or 0)
+        if yolo_result.get("error") and llm_result.get("error"):
+            job.status = "failed"
+            job.error = "两套检测方案均执行失败"
+        else:
+            job.status = "done"
     except Exception as exc:  # noqa: BLE001
         job.status = "failed"
         job.error = f"{type(exc).__name__}: {exc}"[:500]

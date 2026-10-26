@@ -4,6 +4,7 @@
 """
 
 import base64
+import importlib.util
 import io
 import json
 import re
@@ -61,15 +62,26 @@ def _load_models():
     return _yolo, _sam
 
 
-def _font(size: int = 18):
+def _font(size: int = 18) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, bool]:
     for name in ("msyh.ttc", "simhei.ttf", "arial.ttf"):
         path = Path("C:/Windows/Fonts") / name
         if path.exists():
             try:
-                return ImageFont.truetype(str(path), size)
+                return ImageFont.truetype(str(path), size), True
             except OSError:
                 continue
-    return ImageFont.load_default()
+    matplotlib_spec = importlib.util.find_spec("matplotlib")
+    if matplotlib_spec and matplotlib_spec.submodule_search_locations:
+        font_path = (
+            Path(next(iter(matplotlib_spec.submodule_search_locations)))
+            / "mpl-data"
+            / "fonts"
+            / "ttf"
+            / "DejaVuSans.ttf"
+        )
+        if font_path.exists():
+            return ImageFont.truetype(str(font_path), size), False
+    return ImageFont.load_default(), False
 
 
 def _downscale(image: Image.Image, max_side: int = 1600) -> Image.Image:
@@ -128,11 +140,12 @@ def detect(image_path: Path) -> tuple[dict, Image.Image]:
 
     annotated = Image.fromarray(overlay)
     draw = ImageDraw.Draw(annotated)
-    font = _font(max(14, width // 60))
+    font, chinese_font = _font(max(14, width // 60))
     for defect in defects:
         x1, y1, x2, y2 = defect["box"]
         draw.rectangle([x1, y1, x2, y2], outline=(30, 120, 220), width=3)
-        label = f"{defect['name_zh']} {defect['conf'] * 100:.0f}%"
+        display_name = defect["name_zh"] if chinese_font else defect["type"].replace("_", " ")
+        label = f"{display_name} {defect['conf'] * 100:.0f}%"
         draw.text((x1 + 2, max(0, y1 - 20)), label, fill=(30, 120, 220), font=font)
 
     annotated = _downscale(annotated)
@@ -193,7 +206,7 @@ def analyze_with_llm(image_path: Path) -> tuple[dict, Image.Image]:
     # 把大模型报出的位置画在原图上
     annotated = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(annotated)
-    font = _font(max(14, annotated.width // 60))
+    font, chinese_font = _font(max(14, annotated.width // 60))
     for defect in defects:
         center = defect.get("center")
         if not (isinstance(center, (list, tuple)) and len(center) == 2):
@@ -205,7 +218,8 @@ def analyze_with_llm(image_path: Path) -> tuple[dict, Image.Image]:
         radius = max(8, annotated.width // 90)
         draw.line([cx - radius, cy - radius, cx + radius, cy + radius], fill=(200, 30, 30), width=3)
         draw.line([cx - radius, cy + radius, cx + radius, cy - radius], fill=(200, 30, 30), width=3)
-        draw.text((cx + radius + 3, cy - radius - 16), defect["name_zh"],
+        display_name = defect["name_zh"] if chinese_font else defect["type"].replace("_", " ")
+        draw.text((cx + radius + 3, cy - radius - 16), display_name,
                   fill=(200, 30, 30), font=font)
 
     annotated = _downscale(annotated)

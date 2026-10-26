@@ -6,7 +6,7 @@
 
 import hmac
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -31,13 +31,13 @@ def authenticate(username: str, password: str) -> bool:
 def create_token(username: str) -> str:
     payload = {
         "sub": username,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_HOURS),
+        "exp": datetime.now(UTC) + timedelta(hours=TOKEN_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),  # noqa: B008
 ) -> str:
     """FastAPI 依赖:从 Authorization: Bearer <token> 中解析用户。"""
     if credentials is None:

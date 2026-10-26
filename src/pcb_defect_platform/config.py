@@ -21,6 +21,8 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-flash"
 LLM_EFFORT = os.environ.get("LLM_EFFORT", "low")  # none / low / high
+if LLM_EFFORT not in {"none", "low", "high"}:
+    LLM_EFFORT = "low"
 
 # 存储与队列
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'app.db'}")
@@ -42,4 +44,4 @@ CLASS_NAMES_ZH = {
 CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
 IMGSZ = int(os.environ.get("IMGSZ", "1024"))
 SAM_IMGSZ = int(os.environ.get("SAM_IMGSZ", "512"))
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "20"))
+MAX_UPLOAD_MB = max(1, int(os.environ.get("MAX_UPLOAD_MB", "20")))

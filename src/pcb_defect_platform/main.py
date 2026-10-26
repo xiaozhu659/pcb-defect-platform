@@ -10,7 +10,15 @@
 import uuid
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -63,7 +71,7 @@ def login(payload: LoginRequest) -> dict:
 
 
 @app.post("/api/jobs")
-def create_job(background: BackgroundTasks, file: UploadFile = File(...),
+def create_job(background: BackgroundTasks, file: UploadFile = File(...),  # noqa: B008
                user: str = Depends(current_user)) -> dict:
     suffix = Path(file.filename or "upload.jpg").suffix.lower() or ".jpg"
     target = UPLOAD_DIR / f"{uuid.uuid4().hex}{suffix}"
@@ -105,7 +113,10 @@ def get_job(job_id: int, user: str = Depends(current_user)) -> dict:
 
 
 @app.get("/api/jobs")
-def list_jobs(limit: int = 20, user: str = Depends(current_user)) -> list[dict]:
+def list_jobs(
+    limit: int = Query(20, ge=1, le=100),
+    user: str = Depends(current_user),
+) -> list[dict]:
     session = get_session()
     jobs = (session.query(Job).order_by(Job.id.desc()).limit(limit).all())
     session.close()

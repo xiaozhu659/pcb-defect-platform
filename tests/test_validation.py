@@ -2,6 +2,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -40,4 +41,26 @@ class UploadValidationTests(TestCase):
             target = Path(directory) / "sample.png"
             with self.assertRaises(InvalidImageError):
                 save_validated_image(BytesIO(image_bytes()), "sample.png", target, 8)
+            self.assertFalse(target.exists())
+
+    def test_rejects_extension_format_mismatch(self) -> None:
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "sample.jpg"
+            with self.assertRaises(InvalidImageError):
+                save_validated_image(BytesIO(image_bytes()), "sample.jpg", target, 1024 * 1024)
+            self.assertFalse(target.exists())
+
+    def test_rejects_too_many_pixels(self) -> None:
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "sample.png"
+            with (
+                patch("pcb_defect_platform.validation.MAX_IMAGE_PIXELS", 100),
+                self.assertRaises(InvalidImageError),
+            ):
+                save_validated_image(
+                    BytesIO(image_bytes()),
+                    "sample.png",
+                    target,
+                    1024 * 1024,
+                )
             self.assertFalse(target.exists())
