@@ -6,6 +6,16 @@
 上传一张 PCB 照片,后端同时运行**传统检测模型(YOLO + SAM)**与
 **视觉大模型(DeepSeek)**,并排展示两种方案的结果。
 
+## 在线演示
+
+当前部署页面:
+
+```text
+http://39.107.27.28/ui/
+```
+
+该地址只在云服务器租用期内有效。需要在自己的电脑上运行时,按下面的“本机启动”步骤启动服务。
+
 ## 功能
 
 - 图片上传与任务提交(FastAPI);
@@ -26,7 +36,9 @@
                         └── Gradio 页面(/ui)
 ```
 
-## 快速开始(本机,Windows 也能跑)
+## 本机启动(Windows 也能运行)
+
+下面步骤会在当前电脑启动服务,执行后需要保持命令窗口运行。
 
 ```bash
 uv sync
@@ -42,15 +54,18 @@ $env:DEEPSEEK_API_KEY = "你的 key"      # PowerShell
 uv run uvicorn pcb_defect_platform.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 http://127.0.0.1:8000/ui 即可上传图片使用;
-接口文档在 http://127.0.0.1:8000/docs 。
+本机服务启动后,打开 http://127.0.0.1:8000/ui 使用页面;
+接口文档在 http://127.0.0.1:8000/docs。
+
+如果提示“无法访问”或“连接被拒绝”,通常是没有执行上面的启动命令,而不是公网页面故障。
+云服务器页面请使用本文开头的在线演示地址。
 
 部署后可运行自动验收脚本:
 
 ```bash
 uv run python scripts/smoke_test.py \
   --base-url http://127.0.0.1 \
-  --image data/demo.jpg
+  --image path/to/pcb.jpg
 ```
 
 ## 接口
