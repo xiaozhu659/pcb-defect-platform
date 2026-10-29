@@ -1,5 +1,6 @@
 """Gradio 页面:上传一张 PCB 图片,并排展示两种方案的检测结果。"""
 
+import io
 import time
 from pathlib import Path
 
@@ -129,7 +130,12 @@ def _download_image(job_id: int, kind: str, headers: dict[str, str]):
         return None
     if response.status_code != 200 or not response.content:
         return None
-    return response.content
+    try:
+        with Image.open(io.BytesIO(response.content)) as downloaded:
+            downloaded.load()
+            return downloaded.copy()
+    except (OSError, Image.UnidentifiedImageError):
+        return None
 
 
 def build_ui() -> gr.Blocks:

@@ -4,6 +4,13 @@
 >
 > **接口文档:** http://39.107.27.28/docs
 
+## 考核复现图片下载
+
+**[点击下载 `missing_hole01.jpg`](https://github.com/xiaozhu659/pcb-defect-platform/raw/main/examples/input/missing_hole01.jpg)**
+
+下载后直接在网页的“上传图片”区域选择该文件即可复现。对应参考结果位于
+[examples/output](https://github.com/xiaozhu659/pcb-defect-platform/tree/main/examples/output)。
+
 灵境竞赛组 · 后端 AI 方向 · **第三阶段**考核项目
 
 把第二阶段的"双方案对比"做成了一个可以在浏览器里操作的应用:
@@ -90,16 +97,27 @@ uv run python scripts/smoke_test.py \
 `Authorization: Bearer <token>`。
 
 ```bash
-# 1. 登录拿 token
-curl -X POST http://localhost/api/login \
+# 1. 登录拿 token(密码使用交付说明中的演示密码)
+curl -X POST http://39.107.27.28/api/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<演示密码>"}'
 
 # 2. 带 token 提交任务
-curl -X POST http://localhost/api/jobs \
-  -H "Authorization: Bearer <token>" \
+curl -X POST http://39.107.27.28/api/jobs \
+  -H "Authorization: Bearer <access_token>" \
   -F "file=@test.jpg"
 ```
+
+登录成功会返回类似下面的 JSON:
+
+```json
+{"access_token":"eyJ...","token_type":"bearer"}
+```
+
+这里的 `access_token` 是项目自己签发的临时 JWT,不是 GitHub token 或 DeepSeek
+API Key。默认有效期为 12 小时,过期后重新登录即可。网页 `/ui/` 会自动保存和使用;
+使用 `/docs` 手动测试时,先调用登录接口,再点击页面右上角“Authorize”填入手动
+复制的 token。
 
 账号密码来自环境变量 `APP_USER` / `APP_PASSWORD`,签名密钥来自 `JWT_SECRET`,
 默认值仅供本地测试,**部署前务必修改**(见 `.env.example`)。
