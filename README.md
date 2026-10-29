@@ -155,6 +155,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - [部署与验收](docs/部署与验收.md) / [PDF](docs/pdf/PCB缺陷检测平台-部署与验收.pdf)
 - [验收记录](docs/验收记录.md)
 - [参考与 AI 辅助说明](docs/参考与AI辅助说明.md)
+- [示例输入与参考结果](examples/README.md)
 
 ## 当前进度
 
