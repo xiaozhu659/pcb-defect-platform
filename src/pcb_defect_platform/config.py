@@ -28,6 +28,7 @@ if LLM_EFFORT not in {"none", "low", "high"}:
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'app.db'}")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 QUEUE_NAME = "pcb_jobs"
+STALE_JOB_MINUTES = max(1, int(os.environ.get("STALE_JOB_MINUTES", "30")))
 
 # 类别(顺序必须与训练时一致)
 CLASS_ORDER = ["Missing_hole", "Mouse_bite", "Open_circuit",

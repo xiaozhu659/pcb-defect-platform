@@ -23,8 +23,15 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from .auth import authenticate, create_token, current_user
-from .config import MAX_UPLOAD_MB, OUTPUT_DIR, QUEUE_NAME, REDIS_URL, UPLOAD_DIR
-from .db import Job, get_session, init_db
+from .config import (
+    MAX_UPLOAD_MB,
+    OUTPUT_DIR,
+    QUEUE_NAME,
+    REDIS_URL,
+    STALE_JOB_MINUTES,
+    UPLOAD_DIR,
+)
+from .db import Job, fail_stale_jobs, get_session, init_db, mark_job_failed
 from .validation import InvalidImageError, save_validated_image
 from .worker import process_job
 
@@ -39,6 +46,7 @@ class LoginRequest(BaseModel):
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    fail_stale_jobs(STALE_JOB_MINUTES)
 
 
 def _redis_queue():
@@ -93,10 +101,15 @@ def create_job(background: BackgroundTasks, file: UploadFile = File(...),  # noq
     session.close()
 
     queue = _redis_queue()
-    if queue is not None:
-        queue.enqueue(process_job, job_id, job_timeout=600)
-    else:
-        background.add_task(process_job, job_id)
+    try:
+        if queue is not None:
+            queue.enqueue(process_job, job_id, job_timeout=600)
+        else:
+            background.add_task(process_job, job_id)
+    except Exception as exc:
+        message = f"任务提交队列失败:{type(exc).__name__}: {exc}"
+        mark_job_failed(job_id, message)
+        raise HTTPException(503, "任务队列暂时不可用,请稍后重试") from exc
 
     return {"id": job_id, "status": "queued",
             "queue": "redis" if queue else "inline"}
@@ -104,6 +117,7 @@ def create_job(background: BackgroundTasks, file: UploadFile = File(...),  # noq
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: int, user: str = Depends(current_user)) -> dict:
+    fail_stale_jobs(STALE_JOB_MINUTES)
     session = get_session()
     job = session.get(Job, job_id)
     session.close()
@@ -117,6 +131,7 @@ def list_jobs(
     limit: int = Query(20, ge=1, le=100),
     user: str = Depends(current_user),
 ) -> list[dict]:
+    fail_stale_jobs(STALE_JOB_MINUTES)
     session = get_session()
     jobs = (session.query(Job).order_by(Job.id.desc()).limit(limit).all())
     session.close()

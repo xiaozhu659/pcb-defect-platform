@@ -91,9 +91,7 @@ def analyze(image_path: str | None, token: str):
             break
         time.sleep(2)
 
-    if job.get("status") == "failed":
-        return None, None, f"任务失败:{job.get('error')}"
-    if job.get("status") != "done":
+    if job.get("status") not in {"done", "failed"}:
         suffix = f",最后错误:{last_poll_error}" if last_poll_error else ""
         return None, None, f"任务超时(超过 7 分钟){suffix}"
 
@@ -104,17 +102,30 @@ def analyze(image_path: str | None, token: str):
 
     yolo_types = "、".join(sorted({d.get("name_zh", d.get("type", "?")) for d in yolo.get("defects", [])})) or "无"
     llm_types = "、".join(sorted({d.get("name_zh", d.get("type", "?")) for d in llm.get("defects", [])})) or "无"
-    summary = (
-        f"任务 #{job_id}\n"
-        f"传统方案(YOLO+SAM):{yolo.get('count', 0)} 处 · {yolo_types} · {yolo.get('elapsed_ms', 0):.0f} ms\n"
-        f"大模型方案(DeepSeek):{llm.get('count', 0)} 处 · {llm_types} · {llm.get('elapsed_ms', 0):.0f} ms\n"
-    )
+    summary = f"任务 #{job_id}\n"
+    if yolo.get("error"):
+        summary += f"传统方案:失败 · {yolo['error']}\n"
+    else:
+        method = yolo.get("method", "YOLO")
+        timing = (
+            f"总 {yolo.get('elapsed_ms', 0):.0f} ms"
+            f"(YOLO {yolo.get('yolo_ms', 0):.0f} ms"
+            f",SAM {yolo.get('sam_ms', 0):.0f} ms)"
+        )
+        summary += f"传统方案({method}):{yolo.get('count', 0)} 处 · {yolo_types} · {timing}\n"
+    if llm.get("error"):
+        summary += f"大模型方案:失败 · {llm['error']}\n"
+    else:
+        summary += (
+            f"大模型方案(DeepSeek):{llm.get('count', 0)} 处 · "
+            f"{llm_types} · {llm.get('elapsed_ms', 0):.0f} ms\n"
+        )
     if llm.get("summary"):
         summary += f"\n大模型总结:{llm['summary']}"
-    if yolo.get("error"):
-        summary += f"\n传统方案错误:{yolo['error']}"
-    if llm.get("error"):
-        summary += f"\n大模型错误:{llm['error']}"
+    if yolo.get("sam_error"):
+        summary += f"\nSAM 分割提示:{yolo['sam_error']}"
+    if job.get("error"):
+        summary += f"\n任务状态:{job['error']}"
 
     return yolo_image, llm_image, summary
 

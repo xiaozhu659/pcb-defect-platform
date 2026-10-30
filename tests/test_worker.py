@@ -21,6 +21,17 @@ class FakeSession:
 
 
 class WorkerStatusTests(TestCase):
+    def test_does_not_rerun_completed_job(self) -> None:
+        job = Job(filename="sample.jpg", image_path="sample.jpg", status="done")
+        session = FakeSession(job)
+        with (
+            patch("pcb_defect_platform.worker.get_session", return_value=session),
+            patch("pcb_defect_platform.worker.run_both") as run_both,
+        ):
+            process_job(1)
+
+        run_both.assert_not_called()
+
     def test_marks_job_failed_when_both_methods_fail(self) -> None:
         job = Job(filename="sample.jpg", image_path="sample.jpg", status="queued")
         outcome = {

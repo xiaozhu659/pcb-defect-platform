@@ -44,11 +44,12 @@ PROMPT = """这是一张印刷电路板(PCB)的照片。请检查图中是否存
 
 _yolo = None
 _sam = None
+_sam_load_error = None
 
 
 def _load_models():
     """延迟加载:第一次请求时才把模型读进显存,避免启动过慢。"""
-    global _yolo, _sam
+    global _yolo, _sam, _sam_load_error
     if _yolo is None:
         from ultralytics import SAM, YOLO
 
@@ -57,9 +58,11 @@ def _load_models():
         _yolo = YOLO(str(YOLO_WEIGHTS))
         try:
             _sam = SAM(SAM_WEIGHTS)
-        except Exception:  # noqa: BLE001  SAM 权重缺失时退化为只画检测框
+            _sam_load_error = None
+        except Exception as exc:  # noqa: BLE001  SAM 权重缺失时退化为只画检测框
             _sam = None
-    return _yolo, _sam
+            _sam_load_error = f"{type(exc).__name__}: {exc}"[:500]
+    return _yolo, _sam, _sam_load_error
 
 
 def _font(size: int = 18) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, bool]:
@@ -95,10 +98,11 @@ def _downscale(image: Image.Image, max_side: int = 1600) -> Image.Image:
 
 def detect(image_path: Path) -> tuple[dict, Image.Image]:
     """传统方案:YOLO 检测 + SAM 分割,返回结构化结果与可视化图。"""
-    yolo, sam = _load_models()
-    started = time.time()
+    total_started = time.perf_counter()
+    yolo, sam, sam_load_error = _load_models()
+    yolo_started = time.perf_counter()
     result = yolo.predict(str(image_path), imgsz=IMGSZ, conf=CONF_THRESHOLD, verbose=False)[0]
-    elapsed = (time.time() - started) * 1000
+    yolo_ms = (time.perf_counter() - yolo_started) * 1000
 
     image = Image.open(image_path).convert("RGB")
     width, height = image.size
@@ -107,7 +111,14 @@ def detect(image_path: Path) -> tuple[dict, Image.Image]:
     confidences = result.boxes.conf.tolist()
 
     masks = []
-    if sam is not None and boxes:
+    sam_ms = 0.0
+    sam_status = "not_needed"
+    sam_error = None
+    if boxes and sam is None:
+        sam_status = "unavailable"
+        sam_error = sam_load_error or "SAM 模型未加载"
+    elif boxes:
+        sam_started = time.perf_counter()
         try:
             # 2 GiB CPU 服务器使用 512 输入,内存在默认 1024 分辨率上容易耗尽。
             segmentation = sam.predict(
@@ -118,8 +129,16 @@ def detect(image_path: Path) -> tuple[dict, Image.Image]:
             )[0]
             if segmentation.masks is not None:
                 masks = segmentation.masks.data.cpu().numpy()
-        except Exception:  # noqa: BLE001
+                sam_status = "success"
+            else:
+                sam_status = "failed"
+                sam_error = "SAM 未返回分割掩膜"
+        except Exception as exc:  # noqa: BLE001
             masks = []
+            sam_status = "failed"
+            sam_error = f"{type(exc).__name__}: {exc}"[:500]
+        finally:
+            sam_ms = (time.perf_counter() - sam_started) * 1000
 
     defects = []
     overlay = np.array(image).copy()
@@ -149,12 +168,25 @@ def detect(image_path: Path) -> tuple[dict, Image.Image]:
         draw.text((x1 + 2, max(0, y1 - 20)), label, fill=(30, 120, 220), font=font)
 
     annotated = _downscale(annotated)
+    if not boxes:
+        method = "YOLO（未检测到目标，未执行SAM）"
+    elif sam_status == "success":
+        method = "YOLO + SAM"
+    elif sam_status == "unavailable":
+        method = "YOLO（SAM不可用，仅检测）"
+    else:
+        method = "YOLO（SAM分割失败，仅检测）"
     payload = {
-        "method": "YOLO + SAM",
+        "method": method,
         "count": len(defects),
         "defects": defects,
-        "elapsed_ms": round(elapsed, 1),
+        "segmentation": sam_status,
+        "yolo_ms": round(yolo_ms, 1),
+        "sam_ms": round(sam_ms, 1),
+        "elapsed_ms": round((time.perf_counter() - total_started) * 1000, 1),
     }
+    if sam_error:
+        payload["sam_error"] = sam_error
     return payload, annotated
 
 
@@ -196,8 +228,8 @@ def analyze_with_llm(image_path: Path) -> tuple[dict, Image.Image]:
     data = response.json()
     elapsed = (time.time() - started) * 1000
     content = data["choices"][0]["message"]["content"]
-    parsed = _parse_json(content)
-    defects = [d for d in parsed.get("defects", []) if isinstance(d, dict)]
+    parsed = _parse_llm_payload(content)
+    defects = [d for d in parsed["defects"] if isinstance(d, dict)]
     for defect in defects:
         raw = str(defect.get("type", "")).strip().lower().replace(" ", "_")
         defect["type"] = raw
@@ -234,7 +266,7 @@ def analyze_with_llm(image_path: Path) -> tuple[dict, Image.Image]:
     return result, annotated
 
 
-def _parse_json(text: str) -> dict:
+def _parse_json(text: str) -> dict | None:
     cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     try:
         return json.loads(cleaned)
@@ -245,7 +277,20 @@ def _parse_json(text: str) -> dict:
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-    return {}
+    return None
+
+
+def _parse_llm_payload(text: str) -> dict:
+    """区分“有效的空缺陷结果”和无法解析的大模型输出。"""
+    parsed = _parse_json(text)
+    if not isinstance(parsed, dict):
+        raise TypeError("大模型返回内容无法解析为 JSON")
+    defects = parsed.get("defects")
+    if not isinstance(defects, list):
+        raise TypeError("大模型返回 JSON 缺少 defects 数组")
+    if defects and not any(isinstance(item, dict) for item in defects):
+        raise ValueError("大模型返回的 defects 中没有有效对象")
+    return parsed
 
 
 def run_both(image_path: Path) -> dict:

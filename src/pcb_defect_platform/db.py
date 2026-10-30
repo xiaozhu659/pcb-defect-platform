@@ -1,7 +1,7 @@
 """SQLAlchemy 数据层:每次检测请求都记录一条任务。"""
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import DateTime, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -56,3 +56,41 @@ def init_db() -> None:
 
 def get_session() -> Session:
     return SessionLocal()
+
+
+def mark_job_failed(job_id: int, error: str) -> None:
+    """把无法提交到队列的任务明确标成失败,避免永久停在 queued。"""
+    session = get_session()
+    try:
+        job = session.get(Job, job_id)
+        if job is not None and job.status in {"queued", "running"}:
+            job.status = "failed"
+            job.error = error[:500]
+            job.finished_at = datetime.now()
+            session.commit()
+    finally:
+        session.close()
+
+
+def fail_stale_jobs(max_age_minutes: int) -> int:
+    """将长时间未结束的任务标记失败,恢复异常中断后的状态。"""
+    cutoff = datetime.now() - timedelta(minutes=max_age_minutes)
+    session = get_session()
+    try:
+        jobs = (
+            session.query(Job)
+            .filter(Job.status.in_(("queued", "running")))
+            .filter(Job.created_at < cutoff)
+            .all()
+        )
+        for job in jobs:
+            job.status = "failed"
+            job.error = (
+                f"任务超过 {max_age_minutes} 分钟仍未完成,"
+                "可能由队列或 Worker 中断导致"
+            )
+            job.finished_at = datetime.now()
+        session.commit()
+        return len(jobs)
+    finally:
+        session.close()

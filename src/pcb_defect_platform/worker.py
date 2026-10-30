@@ -15,8 +15,12 @@ def process_job(job_id: int) -> None:
     if job is None:
         session.close()
         return
+    if job.status in {"done", "failed"}:
+        session.close()
+        return
 
     job.status = "running"
+    job.error = None
     session.commit()
 
     try:

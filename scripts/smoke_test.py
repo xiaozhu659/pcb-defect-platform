@@ -102,6 +102,17 @@ def run(base_url: str, image_path: Path, timeout_seconds: int) -> None:
     require(job.get("status") == "done", f"任务未成功完成: {job.get('status')}")
     print(f"[6/7] Redis 队列任务已完成: {job.get('status')}")
 
+    traditional = job.get("yolo") or {}
+    require(not traditional.get("error"), f"传统方案失败: {traditional.get('error')}")
+    require("yolo_ms" in traditional, "传统方案缺少 YOLO 耗时")
+    require("sam_ms" in traditional, "传统方案缺少 SAM 耗时")
+    require(
+        float(traditional.get("elapsed_ms", 0)) >= float(traditional.get("yolo_ms", 0)),
+        "传统方案总耗时小于 YOLO 耗时",
+    )
+    llm = job.get("llm") or {}
+    require(not llm.get("error"), f"大模型方案失败: {llm.get('error')}")
+
     for kind in ("yolo", "llm"):
         image = requests.get(
             f"{base_url}/api/files/{job_id}/{kind}",
