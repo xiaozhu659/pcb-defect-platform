@@ -29,6 +29,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'app.db'}"
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 QUEUE_NAME = "pcb_jobs"
 STALE_JOB_MINUTES = max(1, int(os.environ.get("STALE_JOB_MINUTES", "30")))
+JOB_TIMEOUT_SECONDS = max(60, int(os.environ.get("JOB_TIMEOUT_SECONDS", "1200")))
+UI_POLL_TIMEOUT_SECONDS = max(60, int(os.environ.get("UI_POLL_TIMEOUT_SECONDS", "900")))
 
 # 类别(顺序必须与训练时一致)
 CLASS_ORDER = ["Missing_hole", "Mouse_bite", "Open_circuit",
@@ -44,5 +46,5 @@ CLASS_NAMES_ZH = {
 
 CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
 IMGSZ = int(os.environ.get("IMGSZ", "1024"))
-SAM_IMGSZ = int(os.environ.get("SAM_IMGSZ", "512"))
+SAM_IMGSZ = int(os.environ.get("SAM_IMGSZ", "256"))
 MAX_UPLOAD_MB = max(1, int(os.environ.get("MAX_UPLOAD_MB", "20")))

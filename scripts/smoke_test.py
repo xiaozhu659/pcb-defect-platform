@@ -128,7 +128,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PCB 平台端到端冒烟测试")
     parser.add_argument("--base-url", default=os.environ.get("SMOKE_BASE_URL", "http://127.0.0.1"))
     parser.add_argument("--image", required=True, type=Path, help="用于测试的 PCB 图片")
-    parser.add_argument("--timeout", type=int, default=420, help="等待任务完成的最长秒数")
+    parser.add_argument("--timeout", type=int, default=900, help="等待任务完成的最长秒数")
     return parser.parse_args()
 
 

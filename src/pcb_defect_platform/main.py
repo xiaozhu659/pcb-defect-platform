@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from .auth import authenticate, create_token, current_user
 from .config import (
+    JOB_TIMEOUT_SECONDS,
     MAX_UPLOAD_MB,
     OUTPUT_DIR,
     QUEUE_NAME,
@@ -103,7 +104,7 @@ def create_job(background: BackgroundTasks, file: UploadFile = File(...),  # noq
     queue = _redis_queue()
     try:
         if queue is not None:
-            queue.enqueue(process_job, job_id, job_timeout=600)
+            queue.enqueue(process_job, job_id, job_timeout=JOB_TIMEOUT_SECONDS)
         else:
             background.add_task(process_job, job_id)
     except Exception as exc:

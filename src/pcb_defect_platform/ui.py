@@ -8,6 +8,8 @@ import gradio as gr
 import requests
 from PIL import Image
 
+from .config import UI_POLL_TIMEOUT_SECONDS
+
 API_BASE = "http://127.0.0.1:8000"
 IMAGE_EXTENSIONS = {
     "JPEG": (".jpg", "image/jpeg"),
@@ -61,7 +63,7 @@ def analyze(image_path: str | None, token: str):
         return None, None, f"提交失败:{response.status_code} {response.text[:200]}"
 
     job_id = response.json()["id"]
-    deadline = time.time() + 420
+    deadline = time.time() + UI_POLL_TIMEOUT_SECONDS
     job = {}
     last_poll_error = ""
     while time.time() < deadline:
@@ -93,7 +95,8 @@ def analyze(image_path: str | None, token: str):
 
     if job.get("status") not in {"done", "failed"}:
         suffix = f",最后错误:{last_poll_error}" if last_poll_error else ""
-        return None, None, f"任务超时(超过 7 分钟){suffix}"
+        minutes = UI_POLL_TIMEOUT_SECONDS // 60
+        return None, None, f"任务超时(超过 {minutes} 分钟){suffix}"
 
     yolo = job.get("yolo") or {}
     llm = job.get("llm") or {}

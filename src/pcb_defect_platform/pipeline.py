@@ -120,7 +120,7 @@ def detect(image_path: Path) -> tuple[dict, Image.Image]:
     elif boxes:
         sam_started = time.perf_counter()
         try:
-            # 2 GiB CPU 服务器使用 512 输入,内存在默认 1024 分辨率上容易耗尽。
+            # 2 GiB CPU 服务器使用 256 输入,显著降低首次分割耗时和内存压力。
             segmentation = sam.predict(
                 str(image_path),
                 bboxes=boxes,

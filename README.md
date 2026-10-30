@@ -141,7 +141,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 > 这样镜像更小,换模型也不用重新构建。
 
 2 GiB 内存的 CPU 服务器上建议先增加 2 GiB Swap。Compose 已把 Worker
-限制在 1150 MiB,并将 SAM 分割输入设为 512,避免首次推理拖慢整个网页服务。
+限制在 1150 MiB,并将 SAM 分割输入设为 256,避免首次推理拖慢整个网页服务。
 部署和验收的完整步骤见 [docs/部署与验收.md](docs/部署与验收.md)。
 实际运行结果见 [docs/验收记录.md](docs/验收记录.md)。
 
