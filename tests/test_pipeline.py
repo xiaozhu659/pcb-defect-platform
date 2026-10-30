@@ -48,6 +48,16 @@ class LlmPayloadTests(TestCase):
         with self.assertRaisesRegex(TypeError, "缺少 defects"):
             _parse_llm_payload('{"summary": "没有按格式返回"}')
 
+    def test_rejects_defect_without_type(self) -> None:
+        with self.assertRaisesRegex(ValueError, "没有有效对象"):
+            _parse_llm_payload('{"defects": [{}], "summary": "格式错误"}')
+
+    def test_drops_invalid_items_when_at_least_one_is_valid(self) -> None:
+        payload = _parse_llm_payload(
+            '{"defects": [{}, {"type": "short"}], "summary": "发现短路"}'
+        )
+        self.assertEqual(payload["defects"], [{"type": "short"}])
+
 
 class TraditionalTimingTests(TestCase):
     def test_sam_failure_is_reported_and_timed(self) -> None:

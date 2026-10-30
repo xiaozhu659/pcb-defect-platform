@@ -288,8 +288,14 @@ def _parse_llm_payload(text: str) -> dict:
     defects = parsed.get("defects")
     if not isinstance(defects, list):
         raise TypeError("大模型返回 JSON 缺少 defects 数组")
-    if defects and not any(isinstance(item, dict) for item in defects):
+    valid_defects = [
+        item
+        for item in defects
+        if isinstance(item, dict) and str(item.get("type", "")).strip()
+    ]
+    if defects and not valid_defects:
         raise ValueError("大模型返回的 defects 中没有有效对象")
+    parsed["defects"] = valid_defects
     return parsed
 
 
